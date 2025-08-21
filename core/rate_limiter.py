@@ -17,5 +17,5 @@ class RateLimiter:
 		while bucket and bucket[0] < window_start:
 			bucket.popleft()
 		if len(bucket) >= self.max_per_minute:
-			raise RuntimeError("rate_limit_exceeded")
+			raise RateLimitExceeded("rate_limit_exceeded")
 		bucket.append(now)
