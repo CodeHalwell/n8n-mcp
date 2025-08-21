@@ -175,7 +175,20 @@ async def execute_workflow_tool(identifier: str, payload: Optional[Dict[str, Any
 	# Minimal placeholder: users should trigger via webhook for webhook flows
 	return Result(content=[{"type": "text", "text": json.dumps({"status": "not_implemented", "hint": "Trigger via webhook/manual run"})}])
 
-
+	client = N8nClient(settings)
+	try:
+		workflows = await client.list_workflows()
+		wf = next((w for w in workflows if str(w.get("id")) == identifier or w.get("name") == identifier), None)
+		if not wf:
+			return Result(error=f"workflow {identifier} not found")
+		# Attempt to execute the workflow
+		resp = await client.execute_workflow(wf.get("id"), payload or {})
+		audit_log("execute_workflow", actor="mcp", details={"id": wf.get("id"), "payload": payload})
+		return Result(content=[{"type": "text", "text": json.dumps(resp)}])
+	except Exception as e:
+		return Result(error=f"Failed to execute workflow {identifier}: {e}")
+	finally:
+		await client.close()
 def main() -> None:
 	# Startup health check
 	loop = asyncio.get_event_loop()
