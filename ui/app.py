@@ -43,7 +43,14 @@ def ui() -> gr.Blocks:
 
 			def build_preview(template_id: str, params_json: str) -> str:
 				# In a real impl, expand template by id with params
-				return json.dumps({"name": template_id, "nodes": [], "connections": []}, indent=2)
+				try:
+					params = json.loads(params_json)
+					builder = WorkflowBuilder()
+					# Assuming builder has a method to expand template by id and params
+					spec = builder.expand_template(template_id, params)
+					return json.dumps(spec, indent=2)
+				except Exception as e:
+					return json.dumps({"error": f"Failed to build preview: {e}"}, indent=2)
 
 			async def do_validate(preview_json: str) -> str:
 				try:
