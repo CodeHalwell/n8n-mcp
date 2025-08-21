@@ -1,0 +1,8 @@
+{
+	"templates": [
+		{"id": "webhook-code-http", "description": "Webhook → Code → HTTP Request"},
+		{"id": "cron-http-if-slack", "description": "Cron → HTTP Request → IF → Slack/Discord"},
+		{"id": "webhook-http-postgres", "description": "Webhook → HTTP Request → PostgreSQL Insert"},
+		{"id": "cron-http-notion", "description": "Cron → HTTP Request (poll) → Notion/Airtable Upsert"}
+	]
+}

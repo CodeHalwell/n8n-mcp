@@ -1,0 +1,39 @@
+{
+	"name": "Cron HTTP IF Slack",
+	"nodes": [
+		{
+			"name": "Cron",
+			"type": "n8n-nodes-base.cron",
+			"typeVersion": 1,
+			"parameters": {"triggerTimes": {"item": [{"hour": 0, "minute": 0}]}},
+			"position": [200, 200]
+		},
+		{
+			"name": "HTTP Request",
+			"type": "n8n-nodes-base.httpRequest",
+			"typeVersion": 1,
+			"parameters": {"method": "GET", "url": "https://api.example.com/status"},
+			"position": [500, 200]
+		},
+		{
+			"name": "IF",
+			"type": "n8n-nodes-base.if",
+			"typeVersion": 1,
+			"parameters": {"conditions": {"boolean": [{"value1": true}]}},
+			"position": [800, 200]
+		},
+		{
+			"name": "Slack",
+			"type": "n8n-nodes-base.slack",
+			"typeVersion": 1,
+			"parameters": {"resource": "message", "operation": "post", "channel": "#alerts", "text": "Condition matched"},
+			"position": [1100, 160]
+		}
+	],
+	"connections": [
+		{"fromNode": "Cron", "toNode": "HTTP Request"},
+		{"fromNode": "HTTP Request", "toNode": "IF"},
+		{"fromNode": "IF", "toNode": "Slack"}
+	],
+	"settings": {"executionOrder": "v1"}
+}

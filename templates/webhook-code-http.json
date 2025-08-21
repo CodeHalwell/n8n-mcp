@@ -1,0 +1,31 @@
+{
+	"name": "Webhook Code HTTP",
+	"nodes": [
+		{
+			"name": "Webhook",
+			"type": "n8n-nodes-base.webhook",
+			"typeVersion": 1,
+			"parameters": {"path": "mcp/webhook", "httpMethod": "POST"},
+			"position": [200, 200]
+		},
+		{
+			"name": "Code",
+			"type": "n8n-nodes-base.function",
+			"typeVersion": 1,
+			"parameters": {"functionCode": "return items;"},
+			"position": [500, 200]
+		},
+		{
+			"name": "HTTP Request",
+			"type": "n8n-nodes-base.httpRequest",
+			"typeVersion": 1,
+			"parameters": {"method": "POST", "url": "https://example.com/endpoint"},
+			"position": [800, 200]
+		}
+	],
+	"connections": [
+		{"fromNode": "Webhook", "toNode": "Code"},
+		{"fromNode": "Code", "toNode": "HTTP Request"}
+	],
+	"settings": {"executionOrder": "v1"}
+}

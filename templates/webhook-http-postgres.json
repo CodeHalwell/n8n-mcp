@@ -1,0 +1,31 @@
+{
+	"name": "Webhook HTTP Postgres",
+	"nodes": [
+		{
+			"name": "Webhook",
+			"type": "n8n-nodes-base.webhook",
+			"typeVersion": 1,
+			"parameters": {"path": "mcp/ingest", "httpMethod": "POST"},
+			"position": [200, 200]
+		},
+		{
+			"name": "HTTP Request",
+			"type": "n8n-nodes-base.httpRequest",
+			"typeVersion": 1,
+			"parameters": {"method": "GET", "url": "https://api.example.com/data"},
+			"position": [500, 200]
+		},
+		{
+			"name": "Postgres",
+			"type": "n8n-nodes-base.postgres",
+			"typeVersion": 1,
+			"parameters": {"operation": "insert", "schema": "public", "table": "events"},
+			"position": [800, 200]
+		}
+	],
+	"connections": [
+		{"fromNode": "Webhook", "toNode": "HTTP Request"},
+		{"fromNode": "HTTP Request", "toNode": "Postgres"}
+	],
+	"settings": {"executionOrder": "v1"}
+}

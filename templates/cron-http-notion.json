@@ -1,0 +1,31 @@
+{
+	"name": "Cron HTTP Notion",
+	"nodes": [
+		{
+			"name": "Cron",
+			"type": "n8n-nodes-base.cron",
+			"typeVersion": 1,
+			"parameters": {"triggerTimes": {"item": [{"hour": 1, "minute": 0}]}},
+			"position": [200, 200]
+		},
+		{
+			"name": "HTTP Request",
+			"type": "n8n-nodes-base.httpRequest",
+			"typeVersion": 1,
+			"parameters": {"method": "GET", "url": "https://api.example.com/items"},
+			"position": [500, 200]
+		},
+		{
+			"name": "Notion",
+			"type": "n8n-nodes-base.notion",
+			"typeVersion": 1,
+			"parameters": {"resource": "page", "operation": "upsert"},
+			"position": [800, 200]
+		}
+	],
+	"connections": [
+		{"fromNode": "Cron", "toNode": "HTTP Request"},
+		{"fromNode": "HTTP Request", "toNode": "Notion"}
+	],
+	"settings": {"executionOrder": "v1"}
+}
