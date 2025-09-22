@@ -1,7 +1,7 @@
-from pydantic import BaseModel, HttpUrl, Field
-from typing import Optional
 import os
+
 from dotenv import load_dotenv
+from pydantic import BaseModel, Field, HttpUrl
 
 load_dotenv()
 

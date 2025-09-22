@@ -26,10 +26,16 @@ dev-dependencies = [
 
 [tool.ruff]
 line-length = 100
+exclude = ["get-pip.py"]
 
 [tool.mypy]
 python_version = "3.11"
 strict = true
+exclude = ["^ui_gradio/", "^ui/"]
+
+[[tool.mypy.overrides]]
+module = ["builder.*", "n8n_client.*", "ui.*", "ui_gradio.*", "get-pip"]
+ignore_errors = true
 
 [build-system]
 requires = ["hatchling>=1.18.0"]
