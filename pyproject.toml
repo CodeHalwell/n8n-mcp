@@ -3,7 +3,7 @@ name = "n8n-mcp"
 version = "0.1.0"
 description = "MCP server + n8n workflow builder and client"
 readme = "README.md"
-requires-python = ">=3.9,<3.12"
+requires-python = ">=3.9,<3.13"
 authors = [
   { name = "You", email = "you@example.com" }
 ]
