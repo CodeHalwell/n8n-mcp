@@ -450,7 +450,11 @@ async def _call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
 
 def main() -> None:
     async def runner() -> None:
-        await _health_check(_settings)
+        try:
+            await _health_check(_settings)
+        except Exception as e:
+            raise SystemExit(f"n8n health check failed: {e}")
+
         async with stdio_server() as (read_stream, write_stream):
             await server.run(
                 read_stream,
