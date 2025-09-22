@@ -19,7 +19,7 @@ def test_rate_limiter_allows_within_window(monkeypatch: MonkeyPatch) -> None:
     def fake_time() -> float:
         return current
 
-    monkeypatch.setattr(time, "time", lambda: fake_time())
+    monkeypatch.setattr(time, "time", lambda: current)
     current += 120
     limiter.check("actor")
 
