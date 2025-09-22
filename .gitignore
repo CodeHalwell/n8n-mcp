@@ -16,10 +16,13 @@ parts/
 sdist/
 var/
 wheels/
+share/python-wheels/
+
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
+
 
 # Environment
 .env
@@ -31,10 +34,30 @@ env.bak/
 venv.bak/
 
 # IDE
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Environment files
+.env
+
+# pytest
+.pytest_cache/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# IDEs
 .vscode/
 .idea/
 *.swp
 *.swo
+
 *~
 
 # Logs
@@ -59,3 +82,11 @@ coverage.xml
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+audit.log
