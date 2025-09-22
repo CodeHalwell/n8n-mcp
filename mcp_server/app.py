@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Union
+from contextlib import asynccontextmanager
+from typing import Any, AsyncIterator, Dict, Optional, Union
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
 
 from client.n8n_client import N8nClient
@@ -10,6 +11,7 @@ from core.builder import WorkflowBuilder
 from core.config import Settings
 from core.specs import WorkflowSpec
 from core.validator import validate_workflow
+from mcp_server.utils import get_workflow_by_identifier, workflow_id_or_raise
 
 
 app = FastAPI(title="n8n-mcp")
@@ -38,25 +40,35 @@ def _client() -> N8nClient:
     return N8nClient(_settings)
 
 
-def _workflow_id(workflow: Dict[str, Any]) -> Union[str, int]:
-    identifier = workflow.get("id")
-    if isinstance(identifier, (str, int)):
-        return identifier
-    raise HTTPException(status_code=502, detail="workflow id missing from n8n response")
-
-
-@app.get("/health")
-async def health() -> Dict[str, Any]:
+@asynccontextmanager
+async def n8n_client_manager() -> AsyncIterator[N8nClient]:
+    """FastAPI dependency for managing N8nClient lifecycle."""
     client = _client()
     try:
-        info = await client.health()
-        return {"status": "ok", "info": info}
+        yield client
     finally:
         await client.close()
 
 
+def _workflow_id(workflow: Dict[str, Any]) -> Union[str, int]:
+    """Legacy wrapper for backward compatibility."""
+    return workflow_id_or_raise(
+        workflow, 
+        lambda msg: HTTPException(status_code=502, detail=msg)
+    )
+
+
+@app.get("/health")
+async def health(client: N8nClient = Depends(n8n_client_manager)) -> Dict[str, Any]:
+    info = await client.health()
+    return {"status": "ok", "info": info}
+
+
 @app.post("/tools/create_workflow")
-async def create_workflow(req: CreateWorkflowRequest) -> Dict[str, Any]:
+async def create_workflow(
+    req: CreateWorkflowRequest,
+    client: N8nClient = Depends(n8n_client_manager)
+) -> Dict[str, Any]:
     spec = req.spec
     errors = validate_workflow(spec)
     if errors:
@@ -66,88 +78,47 @@ async def create_workflow(req: CreateWorkflowRequest) -> Dict[str, Any]:
     if req.dry_run and not req.commit:
         return {"validated": True, "workflow": workflow_json}
 
-    client = _client()
-    try:
-        existing = await client.list_workflows()
-        existing_names = [wf.get("name") for wf in existing]
-        if spec.name in existing_names:
-            raise HTTPException(status_code=409, detail="workflow name already exists")
-        created = await client.create_workflow(workflow_json)
-        if req.activate:
-            await client.set_activation(_workflow_id(created), True)
-        return {"validated": True, "workflow": created}
-    finally:
-        await client.close()
+    existing = await client.list_workflows()
+    existing_names = [wf.get("name") for wf in existing]
+    if spec.name in existing_names:
+        raise HTTPException(status_code=409, detail="workflow name already exists")
+    created = await client.create_workflow(workflow_json)
+    if req.activate:
+        await client.set_activation(_workflow_id(created), True)
+    return {"validated": True, "workflow": created}
 
 
 @app.post("/tools/update_workflow")
-async def update_workflow(req: UpdateWorkflowRequest) -> Dict[str, Any]:
-    client = _client()
-    try:
-        workflows = await client.list_workflows()
-        workflow = next(
-            (
-                wf
-                for wf in workflows
-                if str(wf.get("id")) == req.identifier or wf.get("name") == req.identifier
-            ),
-            None,
-        )
-        if not workflow:
-            raise HTTPException(status_code=404, detail="workflow not found")
-        updated = await client.update_workflow(_workflow_id(workflow), req.patch)
-        return {"updated": updated}
-    finally:
-        await client.close()
+async def update_workflow(
+    req: UpdateWorkflowRequest,
+    client: N8nClient = Depends(n8n_client_manager)
+) -> Dict[str, Any]:
+    workflow = await get_workflow_by_identifier(client, req.identifier)
+    updated = await client.update_workflow(_workflow_id(workflow), req.patch)
+    return {"updated": updated}
 
 
 @app.get("/tools/list_workflows")
-async def list_workflows() -> Dict[str, Any]:
-    client = _client()
-    try:
-        workflows = await client.list_workflows()
-        return {"workflows": workflows}
-    finally:
-        await client.close()
+async def list_workflows(client: N8nClient = Depends(n8n_client_manager)) -> Dict[str, Any]:
+    workflows = await client.list_workflows()
+    return {"workflows": workflows}
 
 
 @app.get("/tools/get_workflow/{identifier}")
-async def get_workflow(identifier: str) -> Dict[str, Any]:
-    client = _client()
-    try:
-        workflows = await client.list_workflows()
-        workflow = next(
-            (
-                wf
-                for wf in workflows
-                if str(wf.get("id")) == identifier or wf.get("name") == identifier
-            ),
-            None,
-        )
-        if not workflow:
-            raise HTTPException(status_code=404, detail="workflow not found")
-        full = await client.get_workflow(_workflow_id(workflow))
-        return {"workflow": full}
-    finally:
-        await client.close()
+async def get_workflow(
+    identifier: str,
+    client: N8nClient = Depends(n8n_client_manager)
+) -> Dict[str, Any]:
+    workflow = await get_workflow_by_identifier(client, identifier)
+    full = await client.get_workflow(_workflow_id(workflow))
+    return {"workflow": full}
 
 
 @app.post("/tools/execute_workflow")
-async def execute_workflow(req: ExecuteWorkflowRequest) -> Dict[str, Any]:
-    client = _client()
-    try:
-        workflows = await client.list_workflows()
-        workflow = next(
-            (
-                wf
-                for wf in workflows
-                if str(wf.get("id")) == req.identifier or wf.get("name") == req.identifier
-            ),
-            None,
-        )
-        if not workflow:
-            raise HTTPException(status_code=404, detail="workflow not found")
-        result = await client.execute_workflow(_workflow_id(workflow), req.payload or {})
-        return {"result": result}
-    finally:
-        await client.close()
+async def execute_workflow(
+    req: ExecuteWorkflowRequest,
+    client: N8nClient = Depends(n8n_client_manager)
+) -> Dict[str, Any]:
+    workflow = await get_workflow_by_identifier(client, req.identifier)
+    result = await client.execute_workflow(_workflow_id(workflow), req.payload or {})
+    return {"result": result}
