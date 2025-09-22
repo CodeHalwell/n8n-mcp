@@ -15,6 +15,7 @@ from core.logging import audit_log, configure_logging
 from core.rate_limiter import RateLimiter
 from core.specs import WorkflowSpec
 from core.validator import validate_workflow
+from mcp_server.utils import workflow_id_or_raise
 
 
 server = Server("n8n-workflow-builder")
@@ -104,13 +105,13 @@ async def create_workflow_action(
             target = next(
                 wf for wf in existing if wf.get("name") == spec_model.name
             )
-            workflow_id = _workflow_id(target)
+            workflow_id = workflow_id_or_raise(target)
             response = await client.update_workflow(workflow_id, workflow_json)
         else:
             response = await client.create_workflow(workflow_json)
 
         if options.get("activate"):
-            await client.set_activation(_workflow_id(response), True)
+            await client.set_activation(workflow_id_or_raise(response), True)
 
         audit_log(
             "create_workflow",
@@ -133,7 +134,7 @@ async def update_workflow_action(identifier: str, patch: Dict[str, Any]) -> Dict
         )
         if not workflow:
             raise ValueError(f"workflow {identifier} not found")
-        workflow_id = _workflow_id(workflow)
+        workflow_id = workflow_id_or_raise(workflow)
         response = await client.update_workflow(workflow_id, patch)
         audit_log("update_workflow", actor="mcp", details={"id": workflow_id})
         return {"workflow": response}
@@ -152,7 +153,7 @@ async def get_workflow_action(identifier: str) -> Dict[str, Any]:
         )
         if not workflow:
             raise ValueError(f"workflow {identifier} not found")
-        full = await client.get_workflow(_workflow_id(workflow))
+        full = await client.get_workflow(workflow_id_or_raise(workflow))
         return {"workflow": full}
 
 
@@ -169,7 +170,7 @@ async def activate_workflow_action(identifier: str, active: bool) -> Dict[str, A
         )
         if not workflow:
             raise ValueError(f"workflow {identifier} not found")
-        workflow_id = _workflow_id(workflow)
+        workflow_id = workflow_id_or_raise(workflow)
         response = await client.set_activation(workflow_id, active)
         audit_log(
             "activate_workflow",
@@ -192,14 +193,14 @@ async def duplicate_workflow_action(identifier: str, suffix: str) -> Dict[str, A
         )
         if not workflow:
             raise ValueError(f"workflow {identifier} not found")
-        full = await client.get_workflow(_workflow_id(workflow))
+        full = await client.get_workflow(workflow_id_or_raise(workflow))
         full["name"] = f"{full.get('name')}{suffix}"
         full.pop("id", None)
         response = await client.create_workflow(full)
         audit_log(
             "duplicate_workflow",
             actor="mcp",
-            details={"src": _workflow_id(workflow), "new": response.get("id")},
+            details={"src": workflow_id_or_raise(workflow), "new": response.get("id")},
         )
         return {"workflow": response}
 
@@ -219,7 +220,7 @@ async def execute_workflow_action(
         )
         if not workflow:
             raise ValueError(f"workflow {identifier} not found")
-        workflow_id = _workflow_id(workflow)
+        workflow_id = workflow_id_or_raise(workflow)
         response = await client.execute_workflow(workflow_id, payload or {})
         audit_log(
             "execute_workflow",
@@ -231,13 +232,6 @@ async def execute_workflow_action(
 
 ToolHandler = Callable[[Dict[str, Any]], Awaitable[List[TextContent]]]
 _tool_registry: Dict[str, tuple[ToolHandler, Dict[str, Any], str]] = {}
-
-
-def _workflow_id(workflow: Dict[str, Any]) -> Union[str, int]:
-    identifier = workflow.get("id")
-    if isinstance(identifier, (str, int)):
-        return identifier
-    raise ValueError("workflow response missing id")
 
 
 def register_tool(

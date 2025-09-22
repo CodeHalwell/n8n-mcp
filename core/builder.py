@@ -26,9 +26,11 @@ class WorkflowBuilder:
                 "type": conn.output,
                 "index": conn.index,
             }
-            connections.setdefault(from_name, {}).setdefault(conn.output, []).append(
-                [connection_entry]
-            )
+            # Ensure a single branch list (index 0) per from_name/output, then append entries to that branch
+            outs = connections.setdefault(from_name, {}).setdefault(conn.output, [])
+            if not outs:
+                outs.append([])  # create branch 0
+            outs[0].append(connection_entry)
 
         workflow: Dict[str, Any] = {
             "name": spec.name,

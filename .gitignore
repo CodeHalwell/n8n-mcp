@@ -17,10 +17,23 @@ sdist/
 var/
 wheels/
 share/python-wheels/
+
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
+
+
+# Environment
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
 
 # Virtual environments
 .venv/
@@ -44,6 +57,31 @@ dmypy.json
 .idea/
 *.swp
 *.swo
+
+*~
+
+# Logs
+*.log
+
+# Testing
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
 # OS
 .DS_Store
