@@ -230,6 +230,102 @@ async def execute_workflow_action(
         return {"workflow": response}
 
 
+async def delete_workflow_action(identifier: str) -> Dict[str, Any]:
+    async with _client() as client:
+        workflows = await client.list_workflows()
+        workflow = next(
+            (
+                wf
+                for wf in workflows
+                if str(wf.get("id")) == identifier or wf.get("name") == identifier
+            ),
+            None,
+        )
+        if not workflow:
+            raise ValueError(f"workflow {identifier} not found")
+        workflow_id = workflow_id_or_raise(workflow)
+        response = await client.delete_workflow(workflow_id)
+        audit_log("delete_workflow", actor="mcp", details={"id": workflow_id})
+        return response
+
+
+# Execution actions
+async def list_executions_action(
+    workflow_id: Optional[str] = None, limit: int = 100
+) -> Dict[str, Any]:
+    async with _client() as client:
+        executions = await client.list_executions(workflow_id, limit)
+        return {"data": executions}
+
+
+async def get_execution_action(execution_id: str) -> Dict[str, Any]:
+    async with _client() as client:
+        execution = await client.get_execution(execution_id)
+        return {"execution": execution}
+
+
+async def delete_execution_action(execution_id: str) -> Dict[str, Any]:
+    async with _client() as client:
+        response = await client.delete_execution(execution_id)
+        audit_log("delete_execution", actor="mcp", details={"id": execution_id})
+        return response
+
+
+# Credential actions
+async def list_credentials_action(
+    credential_type: Optional[str] = None
+) -> Dict[str, Any]:
+    async with _client() as client:
+        credentials = await client.list_credentials(credential_type)
+        return {"data": credentials}
+
+
+async def get_credential_action(credential_id: str) -> Dict[str, Any]:
+    async with _client() as client:
+        credential = await client.get_credential(credential_id)
+        return {"credential": credential}
+
+
+async def create_credential_action(credential_data: Dict[str, Any]) -> Dict[str, Any]:
+    async with _client() as client:
+        response = await client.create_credential(credential_data)
+        audit_log(
+            "create_credential",
+            actor="mcp",
+            details={"name": credential_data.get("name"), "type": credential_data.get("type")},
+        )
+        return {"credential": response}
+
+
+async def update_credential_action(
+    credential_id: str, credential_data: Dict[str, Any]
+) -> Dict[str, Any]:
+    async with _client() as client:
+        response = await client.update_credential(credential_id, credential_data)
+        audit_log("update_credential", actor="mcp", details={"id": credential_id})
+        return {"credential": response}
+
+
+async def delete_credential_action(credential_id: str) -> Dict[str, Any]:
+    async with _client() as client:
+        response = await client.delete_credential(credential_id)
+        audit_log("delete_credential", actor="mcp", details={"id": credential_id})
+        return response
+
+
+# Node type actions
+async def list_node_types_action() -> Dict[str, Any]:
+    async with _client() as client:
+        node_types = await client.list_node_types()
+        return {"data": node_types}
+
+
+async def get_node_type_action(node_type: str) -> Dict[str, Any]:
+    async with _client() as client:
+        node_type_info = await client.get_node_type(node_type)
+        return {"node_type": node_type_info}
+
+
 ToolHandler = Callable[[Dict[str, Any]], Awaitable[List[TextContent]]]
 _tool_registry: Dict[str, tuple[ToolHandler, Dict[str, Any], str]] = {}
 
@@ -423,6 +519,218 @@ async def execute_workflow_tool(arguments: Dict[str, Any]) -> List[TextContent]:
     if payload is not None and not isinstance(payload, dict):
         raise ValueError("payload must be an object if provided")
     return _text_payload(await execute_workflow_action(identifier, payload))
+
+
+@register_tool(
+    "delete_workflow",
+    "Delete a workflow by id or name.",
+    {
+        "type": "object",
+        "properties": {
+            "identifier": {"type": "string"},
+        },
+        "required": ["identifier"],
+    },
+)
+async def delete_workflow_tool(arguments: Dict[str, Any]) -> List[TextContent]:
+    rate_limiter.check("mcp")
+    identifier = arguments.get("identifier")
+    if not isinstance(identifier, str):
+        raise ValueError("identifier must be a string")
+    return _text_payload(await delete_workflow_action(identifier))
+
+
+# Execution tools
+@register_tool(
+    "list_executions",
+    "List workflow executions, optionally filtered by workflow_id.",
+    {
+        "type": "object",
+        "properties": {
+            "workflow_id": {"type": "string"},
+            "limit": {"type": "integer", "default": 100},
+        },
+    },
+)
+async def list_executions_tool(arguments: Dict[str, Any]) -> List[TextContent]:
+    rate_limiter.check("mcp")
+    workflow_id = arguments.get("workflow_id")
+    limit = arguments.get("limit", 100)
+    if workflow_id is not None and not isinstance(workflow_id, str):
+        raise ValueError("workflow_id must be a string if provided")
+    if not isinstance(limit, int):
+        raise ValueError("limit must be an integer")
+    return _text_payload(await list_executions_action(workflow_id, limit))
+
+
+@register_tool(
+    "get_execution",
+    "Get detailed information about a specific execution.",
+    {
+        "type": "object",
+        "properties": {
+            "execution_id": {"type": "string"},
+        },
+        "required": ["execution_id"],
+    },
+)
+async def get_execution_tool(arguments: Dict[str, Any]) -> List[TextContent]:
+    rate_limiter.check("mcp")
+    execution_id = arguments.get("execution_id")
+    if not isinstance(execution_id, str):
+        raise ValueError("execution_id must be a string")
+    return _text_payload(await get_execution_action(execution_id))
+
+
+@register_tool(
+    "delete_execution",
+    "Delete an execution by id.",
+    {
+        "type": "object",
+        "properties": {
+            "execution_id": {"type": "string"},
+        },
+        "required": ["execution_id"],
+    },
+)
+async def delete_execution_tool(arguments: Dict[str, Any]) -> List[TextContent]:
+    rate_limiter.check("mcp")
+    execution_id = arguments.get("execution_id")
+    if not isinstance(execution_id, str):
+        raise ValueError("execution_id must be a string")
+    return _text_payload(await delete_execution_action(execution_id))
+
+
+# Credential tools
+@register_tool(
+    "list_credentials",
+    "List all credentials, optionally filtered by credential type.",
+    {
+        "type": "object",
+        "properties": {
+            "credential_type": {"type": "string"},
+        },
+    },
+)
+async def list_credentials_tool(arguments: Dict[str, Any]) -> List[TextContent]:
+    rate_limiter.check("mcp")
+    credential_type = arguments.get("credential_type")
+    if credential_type is not None and not isinstance(credential_type, str):
+        raise ValueError("credential_type must be a string if provided")
+    return _text_payload(await list_credentials_action(credential_type))
+
+
+@register_tool(
+    "get_credential",
+    "Get a specific credential by id (sensitive data will be redacted).",
+    {
+        "type": "object",
+        "properties": {
+            "credential_id": {"type": "string"},
+        },
+        "required": ["credential_id"],
+    },
+)
+async def get_credential_tool(arguments: Dict[str, Any]) -> List[TextContent]:
+    rate_limiter.check("mcp")
+    credential_id = arguments.get("credential_id")
+    if not isinstance(credential_id, str):
+        raise ValueError("credential_id must be a string")
+    return _text_payload(await get_credential_action(credential_id))
+
+
+@register_tool(
+    "create_credential",
+    "Create a new credential with the specified data.",
+    {
+        "type": "object",
+        "properties": {
+            "credential_data": {"type": "object"},
+        },
+        "required": ["credential_data"],
+    },
+)
+async def create_credential_tool(arguments: Dict[str, Any]) -> List[TextContent]:
+    rate_limiter.check("mcp")
+    credential_data = arguments.get("credential_data")
+    if not isinstance(credential_data, dict):
+        raise ValueError("credential_data must be an object")
+    return _text_payload(await create_credential_action(credential_data))
+
+
+@register_tool(
+    "update_credential",
+    "Update an existing credential.",
+    {
+        "type": "object",
+        "properties": {
+            "credential_id": {"type": "string"},
+            "credential_data": {"type": "object"},
+        },
+        "required": ["credential_id", "credential_data"],
+    },
+)
+async def update_credential_tool(arguments: Dict[str, Any]) -> List[TextContent]:
+    rate_limiter.check("mcp")
+    credential_id = arguments.get("credential_id")
+    credential_data = arguments.get("credential_data")
+    if not isinstance(credential_id, str):
+        raise ValueError("credential_id must be a string")
+    if not isinstance(credential_data, dict):
+        raise ValueError("credential_data must be an object")
+    return _text_payload(await update_credential_action(credential_id, credential_data))
+
+
+@register_tool(
+    "delete_credential",
+    "Delete a credential by id.",
+    {
+        "type": "object",
+        "properties": {
+            "credential_id": {"type": "string"},
+        },
+        "required": ["credential_id"],
+    },
+)
+async def delete_credential_tool(arguments: Dict[str, Any]) -> List[TextContent]:
+    rate_limiter.check("mcp")
+    credential_id = arguments.get("credential_id")
+    if not isinstance(credential_id, str):
+        raise ValueError("credential_id must be a string")
+    return _text_payload(await delete_credential_action(credential_id))
+
+
+# Node type tools
+@register_tool(
+    "list_node_types",
+    "List all available node types in the n8n instance.",
+    {
+        "type": "object",
+        "properties": {},
+    },
+)
+async def list_node_types_tool(arguments: Dict[str, Any]) -> List[TextContent]:
+    rate_limiter.check("mcp")
+    return _text_payload(await list_node_types_action())
+
+
+@register_tool(
+    "get_node_type",
+    "Get detailed information about a specific node type.",
+    {
+        "type": "object",
+        "properties": {
+            "node_type": {"type": "string"},
+        },
+        "required": ["node_type"],
+    },
+)
+async def get_node_type_tool(arguments: Dict[str, Any]) -> List[TextContent]:
+    rate_limiter.check("mcp")
+    node_type = arguments.get("node_type")
+    if not isinstance(node_type, str):
+        raise ValueError("node_type must be a string")
+    return _text_payload(await get_node_type_action(node_type))
 
 
 # mypy struggles with dynamic decorator types exposed by the MCP library.

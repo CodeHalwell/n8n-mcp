@@ -13,7 +13,9 @@ class WorkflowBuilder:
         nodes = [self._node_to_json(node) for node in spec.nodes]
         name_to_index = {node.name: idx for idx, node in enumerate(spec.nodes)}
 
+        # Connections structure: {fromNode: {outputType: [[connections for branch 0], [connections for branch 1], ...]}}
         connections: Dict[str, Dict[str, List[List[Dict[str, Any]]]]] = {}
+
         for conn in spec.connections:
             from_idx = name_to_index.get(conn.fromNode)
             to_idx = name_to_index.get(conn.toNode)
@@ -21,16 +23,23 @@ class WorkflowBuilder:
                 raise ValueError(f"Connection refers to unknown node: {conn}")
 
             from_name = spec.nodes[from_idx].name
+            to_name = spec.nodes[to_idx].name
+
             connection_entry = {
-                "node": spec.nodes[to_idx].name,
+                "node": to_name,
                 "type": conn.output,
                 "index": conn.index,
             }
-            # Ensure a single branch list (index 0) per from_name/output, then append entries to that branch
-            outs = connections.setdefault(from_name, {}).setdefault(conn.output, [])
-            if not outs:
-                outs.append([])  # create branch 0
-            outs[0].append(connection_entry)
+
+            # Get or create the output type list for this node
+            output_list = connections.setdefault(from_name, {}).setdefault(conn.output, [])
+
+            # Ensure we have enough branches
+            while len(output_list) <= conn.branch:
+                output_list.append([])
+
+            # Add the connection to the appropriate branch
+            output_list[conn.branch].append(connection_entry)
 
         workflow: Dict[str, Any] = {
             "name": spec.name,
