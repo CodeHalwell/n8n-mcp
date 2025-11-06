@@ -10,6 +10,7 @@ from mcp.types import TextContent, Tool
 
 from client.n8n_client import N8nClient
 from core.builder import WorkflowBuilder
+from core.cache import node_type_cache
 from core.config import Settings
 from core.logging import audit_log, configure_logging
 from core.rate_limiter import RateLimiter
@@ -425,15 +426,35 @@ async def delete_credential_action(credential_id: str) -> Dict[str, Any]:
 
 # Node type actions
 async def list_node_types_action() -> Dict[str, Any]:
+    """List all available node types with caching."""
+    # Check cache first
+    cached = node_type_cache.get("node_types_list")
+    if cached is not None:
+        return {"data": cached, "cached": True}
+
+    # Fetch from API if not cached
     async with _client() as client:
         node_types = await client.list_node_types()
-        return {"data": node_types}
+        # Store in cache
+        node_type_cache.set("node_types_list", node_types)
+        return {"data": node_types, "cached": False}
 
 
 async def get_node_type_action(node_type: str) -> Dict[str, Any]:
+    """Get detailed node type information with caching."""
+    cache_key = f"node_type:{node_type}"
+
+    # Check cache first
+    cached = node_type_cache.get(cache_key)
+    if cached is not None:
+        return {"node_type": cached, "cached": True}
+
+    # Fetch from API if not cached
     async with _client() as client:
         node_type_info = await client.get_node_type(node_type)
-        return {"node_type": node_type_info}
+        # Store in cache
+        node_type_cache.set(cache_key, node_type_info)
+        return {"node_type": node_type_info, "cached": False}
 
 
 ToolHandler = Callable[[Dict[str, Any]], Awaitable[List[TextContent]]]
