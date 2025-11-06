@@ -169,11 +169,14 @@ Query your instance for available nodes and get detailed documentation:
 - Use `get_node_type("n8n-nodes-base.gmail")` for specific node details
 
 ### Security
-- ✅ All secrets via environment variables
-- ✅ No sensitive data in logs (audit logs redact credentials)
+- ✅ All secrets via environment variables (never hardcoded)
+- ✅ Automatic redaction of sensitive data in audit logs (passwords, API keys, tokens, etc.)
+- ✅ Comprehensive test suite for security features
 - ✅ Rate limiting (default: 60 requests/minute)
 - ✅ API key authentication with n8n
 - ✅ Audit trail for all destructive operations
+- ✅ Security best practices documented in .env.template
+- ✅ Recursive sanitization prevents credential leaks in nested objects
 
 ### Requirements
 - Python 3.9+
