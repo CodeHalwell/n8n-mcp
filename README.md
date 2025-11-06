@@ -131,12 +131,27 @@ python -m mcp_server  # Runs health check then starts server
 ```
 
 ### Project Structure
-- `core/` - Workflow builder, validator, config, logging
+- `core/` - Workflow builder, validator, config, logging, cache, circuit breaker
 - `client/` - n8n REST API client with full endpoint coverage
-- `mcp_server/` - MCP server with 20 tools
+- `mcp_server/` - MCP server with 25 tools
 - `ui/` - Optional Gradio web interface
 - `templates/` - Example workflow templates
-- `tests/` - Comprehensive test suite
+- `tests/` - Comprehensive test suite (50+ tests, 100% passing)
+
+### Testing
+
+Run the test suite:
+```bash
+pytest tests/ -v
+```
+
+Test coverage includes:
+- ✅ **Core modules**: Workflow builder, validator, utilities
+- ✅ **Security**: Sensitive data redaction in audit logs
+- ✅ **Reliability**: Circuit breaker pattern, rate limiting
+- ✅ **Performance**: Caching with TTL support
+- ✅ **MCP tools**: Tool registration and execution
+- **50+ tests total** with comprehensive edge case coverage
 
 ### Advanced Features
 
