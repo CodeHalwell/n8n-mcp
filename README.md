@@ -12,8 +12,10 @@ A comprehensive MCP (Model Context Protocol) server for building, managing, and 
 🎯 **Smart Validation** - Dynamic validation against your n8n instance's available nodes
 📝 **Audit Logging** - Complete audit trail of all operations
 ⚡ **Rate Limiting** - Built-in protection for your n8n instance
+🏎️ **High Performance** - Connection pooling, retry logic, and bulk operations ✨ NEW
+🔗 **Webhook URLs** - Automatically retrieve webhook endpoints ✨ NEW
 
-### MCP Tools Available (20 Total)
+### MCP Tools Available (23 Total)
 
 **Workflow Management:**
 - `validate_workflow` - Validate workflow specs offline
@@ -25,6 +27,9 @@ A comprehensive MCP (Model Context Protocol) server for building, managing, and 
 - `activate_workflow` - Enable/disable workflows
 - `duplicate_workflow` - Clone with custom suffix
 - `execute_workflow` - Trigger with custom payload
+- `get_webhook_urls` - Get webhook URLs for a workflow ✨ NEW
+- `bulk_activate_workflows` - Activate/deactivate multiple workflows in parallel ✨ NEW
+- `bulk_delete_workflows` - Delete multiple workflows in parallel ✨ NEW
 
 **Execution Monitoring:**
 - `list_executions` - View execution history (filter by workflow)

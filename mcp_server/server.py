@@ -249,6 +249,116 @@ async def delete_workflow_action(identifier: str) -> Dict[str, Any]:
         return response
 
 
+async def get_webhook_urls_action(identifier: str) -> Dict[str, Any]:
+    """Get all webhook URLs for a workflow."""
+    async with _client() as client:
+        workflows = await client.list_workflows()
+        workflow = next(
+            (
+                wf
+                for wf in workflows
+                if str(wf.get("id")) == identifier or wf.get("name") == identifier
+            ),
+            None,
+        )
+        if not workflow:
+            raise ValueError(f"workflow {identifier} not found")
+
+        full = await client.get_workflow(workflow_id_or_raise(workflow))
+
+        # Find all webhook nodes
+        webhook_nodes = [
+            node for node in full.get("nodes", [])
+            if node.get("type") == "n8n-nodes-base.webhook"
+        ]
+
+        # Build webhook URLs
+        urls = []
+        for node in webhook_nodes:
+            path = node.get("parameters", {}).get("path", "")
+            method = node.get("parameters", {}).get("httpMethod", "GET")
+
+            # Construct the webhook URL
+            # Format: {n8n_base_url}/webhook/{path}
+            base_url = _settings.n8n_api_url.rstrip("/api/v1").rstrip("/")
+            webhook_url = f"{base_url}/webhook/{path}"
+
+            urls.append({
+                "node_name": node.get("name"),
+                "node_id": node.get("id"),
+                "path": path,
+                "method": method,
+                "url": webhook_url,
+            })
+
+        return {
+            "workflow_id": full.get("id"),
+            "workflow_name": full.get("name"),
+            "webhook_urls": urls,
+            "count": len(urls),
+        }
+
+
+async def bulk_activate_workflows_action(
+    identifiers: List[str], active: bool
+) -> Dict[str, Any]:
+    """Activate or deactivate multiple workflows in parallel."""
+    tasks = [activate_workflow_action(identifier, active) for identifier in identifiers]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    successes = []
+    failures = []
+
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            failures.append({
+                "identifier": identifiers[i],
+                "error": str(result),
+            })
+        else:
+            successes.append({
+                "identifier": identifiers[i],
+                "workflow_id": result.get("workflow", {}).get("id"),
+            })
+
+    return {
+        "successes": successes,
+        "failures": failures,
+        "total": len(identifiers),
+        "success_count": len(successes),
+        "failure_count": len(failures),
+    }
+
+
+async def bulk_delete_workflows_action(identifiers: List[str]) -> Dict[str, Any]:
+    """Delete multiple workflows in parallel."""
+    tasks = [delete_workflow_action(identifier) for identifier in identifiers]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    successes = []
+    failures = []
+
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            failures.append({
+                "identifier": identifiers[i],
+                "error": str(result),
+            })
+        else:
+            successes.append({
+                "identifier": identifiers[i],
+                "status": "deleted",
+            })
+
+    return {
+        "successes": successes,
+        "failures": failures,
+        "total": len(identifiers),
+        "success_count": len(successes),
+        "failure_count": len(failures),
+    }
+
+
 # Execution actions
 async def list_executions_action(
     workflow_id: Optional[str] = None, limit: int = 100
@@ -538,6 +648,78 @@ async def delete_workflow_tool(arguments: Dict[str, Any]) -> List[TextContent]:
     if not isinstance(identifier, str):
         raise ValueError("identifier must be a string")
     return _text_payload(await delete_workflow_action(identifier))
+
+
+@register_tool(
+    "get_webhook_urls",
+    "Get all webhook URLs for a workflow. Returns the full webhook endpoints that can be called.",
+    {
+        "type": "object",
+        "properties": {
+            "identifier": {"type": "string"},
+        },
+        "required": ["identifier"],
+    },
+)
+async def get_webhook_urls_tool(arguments: Dict[str, Any]) -> List[TextContent]:
+    rate_limiter.check("mcp")
+    identifier = arguments.get("identifier")
+    if not isinstance(identifier, str):
+        raise ValueError("identifier must be a string")
+    return _text_payload(await get_webhook_urls_action(identifier))
+
+
+@register_tool(
+    "bulk_activate_workflows",
+    "Activate or deactivate multiple workflows in parallel for faster bulk operations.",
+    {
+        "type": "object",
+        "properties": {
+            "identifiers": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "List of workflow IDs or names",
+            },
+            "active": {
+                "type": "boolean",
+                "description": "True to activate, False to deactivate",
+            },
+        },
+        "required": ["identifiers", "active"],
+    },
+)
+async def bulk_activate_workflows_tool(arguments: Dict[str, Any]) -> List[TextContent]:
+    rate_limiter.check("mcp")
+    identifiers = arguments.get("identifiers")
+    active = arguments.get("active")
+    if not isinstance(identifiers, list):
+        raise ValueError("identifiers must be an array")
+    if not isinstance(active, bool):
+        raise ValueError("active must be a boolean")
+    return _text_payload(await bulk_activate_workflows_action(identifiers, active))
+
+
+@register_tool(
+    "bulk_delete_workflows",
+    "Delete multiple workflows in parallel. Use with caution - this cannot be undone.",
+    {
+        "type": "object",
+        "properties": {
+            "identifiers": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "List of workflow IDs or names to delete",
+            },
+        },
+        "required": ["identifiers"],
+    },
+)
+async def bulk_delete_workflows_tool(arguments: Dict[str, Any]) -> List[TextContent]:
+    rate_limiter.check("mcp")
+    identifiers = arguments.get("identifiers")
+    if not isinstance(identifiers, list):
+        raise ValueError("identifiers must be an array")
+    return _text_payload(await bulk_delete_workflows_action(identifiers))
 
 
 # Execution tools
