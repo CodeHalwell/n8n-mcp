@@ -16,8 +16,9 @@ A comprehensive MCP (Model Context Protocol) server for building, managing, and 
 🔗 **Webhook URLs** - Automatically retrieve webhook endpoints ✨ NEW
 🛡️ **Circuit Breaker** - Automatic failure detection and recovery ✨ NEW
 💾 **Node Type Caching** - 1-hour cache for faster node type lookups ✨ NEW
+📊 **Metrics & Monitoring** - Real-time metrics, health checks, and observability ✨ NEW
 
-### MCP Tools Available (25 Total)
+### MCP Tools Available (28 Total)
 
 **Workflow Management:**
 - `validate_workflow` - Validate workflow specs offline
@@ -52,6 +53,9 @@ A comprehensive MCP (Model Context Protocol) server for building, managing, and 
 **System Monitoring:**
 - `get_circuit_breaker_stats` - Monitor API health and circuit breaker state ✨ NEW
 - `reset_circuit_breaker` - Manually reset circuit breaker after n8n recovery ✨ NEW
+- `get_metrics` - Comprehensive metrics (requests, latency, errors, cache) ✨ NEW
+- `get_health_status` - Overall health checks with detailed status ✨ NEW
+- `reset_metrics` - Reset all collected metrics ✨ NEW
 
 ### Quickstart
 
@@ -131,12 +135,13 @@ python -m mcp_server  # Runs health check then starts server
 ```
 
 ### Project Structure
-- `core/` - Workflow builder, validator, config, logging, cache, circuit breaker
+- `core/` - Workflow builder, validator, config, logging, cache, circuit breaker, metrics, workflow helpers
 - `client/` - n8n REST API client with full endpoint coverage
-- `mcp_server/` - MCP server with 25 tools
+- `mcp_server/` - MCP server with 28 tools
 - `ui/` - Optional Gradio web interface
 - `templates/` - Example workflow templates
-- `tests/` - Comprehensive test suite (50+ tests, 100% passing)
+- `examples/` - Usage examples and patterns
+- `tests/` - Comprehensive test suite (65+ tests, 100% passing)
 
 ### Testing
 

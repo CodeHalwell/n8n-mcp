@@ -13,6 +13,7 @@ from core.builder import WorkflowBuilder
 from core.cache import node_type_cache
 from core.config import Settings
 from core.logging import audit_log, configure_logging
+from core.metrics import metrics_collector
 from core.rate_limiter import RateLimiter
 from core.specs import WorkflowSpec
 from core.validator import validate_workflow
@@ -62,6 +63,24 @@ async def reset_circuit_breaker_action() -> Dict[str, Any]:
         client.reset_circuit_breaker()
         audit_log("reset_circuit_breaker", actor="mcp", details={})
         return {"status": "reset", "message": "Circuit breaker has been reset to CLOSED state"}
+
+
+async def get_metrics_action() -> Dict[str, Any]:
+    """Get current metrics summary."""
+    return metrics_collector.get_summary()
+
+
+async def get_health_status_action() -> Dict[str, Any]:
+    """Get health status with checks."""
+    health = metrics_collector.check_health()
+    return health.to_dict()
+
+
+async def reset_metrics_action() -> Dict[str, Any]:
+    """Reset all metrics."""
+    metrics_collector.reset()
+    audit_log("reset_metrics", actor="mcp", details={})
+    return {"status": "reset", "message": "All metrics have been reset"}
 
 
 async def validate_workflow_action(workflow_json: Dict[str, Any]) -> Dict[str, Any]:
@@ -970,6 +989,37 @@ async def get_circuit_breaker_stats_tool(arguments: Dict[str, Any]) -> List[Text
 async def reset_circuit_breaker_tool(arguments: Dict[str, Any]) -> List[TextContent]:
     rate_limiter.check("mcp")
     return _text_payload(await reset_circuit_breaker_action())
+
+
+# Metrics and monitoring tools
+@register_tool(
+    "get_metrics",
+    "Get comprehensive metrics including request rates, latency, error rates, and cache performance.",
+    {"type": "object", "properties": {}},
+)
+async def get_metrics_tool(arguments: Dict[str, Any]) -> List[TextContent]:
+    rate_limiter.check("mcp")
+    return _text_payload(await get_metrics_action())
+
+
+@register_tool(
+    "get_health_status",
+    "Check overall system health with detailed status checks for errors, latency, and cache.",
+    {"type": "object", "properties": {}},
+)
+async def get_health_status_tool(arguments: Dict[str, Any]) -> List[TextContent]:
+    rate_limiter.check("mcp")
+    return _text_payload(await get_health_status_action())
+
+
+@register_tool(
+    "reset_metrics",
+    "Reset all collected metrics. Use for testing or to clear historical data.",
+    {"type": "object", "properties": {}},
+)
+async def reset_metrics_tool(arguments: Dict[str, Any]) -> List[TextContent]:
+    rate_limiter.check("mcp")
+    return _text_payload(await reset_metrics_action())
 
 
 # mypy struggles with dynamic decorator types exposed by the MCP library.
