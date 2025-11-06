@@ -2,30 +2,59 @@ from __future__ import annotations
 
 import httpx
 from typing import Any, Dict, List, Optional, Union, cast
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
 
 from core.config import Settings
+
+
+# Retry decorator for transient network errors
+# Retries up to 3 times with exponential backoff: 1s, 2s, 4s
+_retry_on_network_error = retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=10),
+    retry=retry_if_exception_type((
+        httpx.TimeoutException,
+        httpx.NetworkError,
+        httpx.ConnectError,
+        httpx.RemoteProtocolError,
+    )),
+    reraise=True,
+)
 
 
 class N8nClient:
     def __init__(self, settings: Settings) -> None:
         self._base_url = f"{settings.n8n_api_url}/api/v1"
         self._headers = {"X-N8N-API-KEY": settings.n8n_api_key}
+        # Connection pooling for performance - reuse connections across requests
         self._client = httpx.AsyncClient(
             base_url=self._base_url,
             headers=self._headers,
             timeout=30.0,
+            limits=httpx.Limits(
+                max_keepalive_connections=20,  # Keep 20 connections alive
+                max_connections=100,  # Total connection pool size
+                keepalive_expiry=300.0,  # Keep connections alive for 5 minutes
+            ),
         )
 
     async def close(self) -> None:
         await self._client.aclose()
 
     # Health & Info
+    @_retry_on_network_error
     async def health(self) -> Dict[str, Any]:
         resp = await self._client.get("/health")
         resp.raise_for_status()
         return cast(Dict[str, Any], resp.json())
 
     # Workflows
+    @_retry_on_network_error
     async def list_workflows(self) -> List[Dict[str, Any]]:
         resp = await self._client.get("/workflows")
         resp.raise_for_status()
@@ -33,6 +62,7 @@ class N8nClient:
         raw = data.get("data", [])
         return [cast(Dict[str, Any], item) for item in raw]
 
+    @_retry_on_network_error
     async def get_workflow(self, workflow_id: Union[str, int]) -> Dict[str, Any]:
         resp = await self._client.get(f"/workflows/{workflow_id}")
         resp.raise_for_status()
@@ -42,11 +72,13 @@ class N8nClient:
             return inner
         return payload
 
+    @_retry_on_network_error
     async def create_workflow(self, workflow_json: Dict[str, Any]) -> Dict[str, Any]:
         resp = await self._client.post("/workflows", json=workflow_json)
         resp.raise_for_status()
         return cast(Dict[str, Any], resp.json())
 
+    @_retry_on_network_error
     async def update_workflow(
         self, workflow_id: Union[str, int], patch: Dict[str, Any]
     ) -> Dict[str, Any]:
@@ -54,11 +86,13 @@ class N8nClient:
         resp.raise_for_status()
         return cast(Dict[str, Any], resp.json())
 
+    @_retry_on_network_error
     async def delete_workflow(self, workflow_id: Union[str, int]) -> Dict[str, Any]:
         resp = await self._client.delete(f"/workflows/{workflow_id}")
         resp.raise_for_status()
         return {"status": "deleted", "id": workflow_id}
 
+    @_retry_on_network_error
     async def set_activation(
         self, workflow_id: Union[str, int], active: bool
     ) -> Dict[str, Any]:
@@ -67,6 +101,7 @@ class N8nClient:
         resp.raise_for_status()
         return cast(Dict[str, Any], resp.json())
 
+    @_retry_on_network_error
     async def execute_workflow(
         self, workflow_id: Union[str, int], payload: Dict[str, Any]
     ) -> Dict[str, Any]:
@@ -78,6 +113,7 @@ class N8nClient:
         return cast(Dict[str, Any], resp.json())
 
     # Executions
+    @_retry_on_network_error
     async def list_executions(
         self, workflow_id: Optional[Union[str, int]] = None, limit: int = 100
     ) -> List[Dict[str, Any]]:
@@ -91,6 +127,7 @@ class N8nClient:
         raw = data.get("data", [])
         return [cast(Dict[str, Any], item) for item in raw]
 
+    @_retry_on_network_error
     async def get_execution(self, execution_id: Union[str, int]) -> Dict[str, Any]:
         """Get detailed information about a specific execution."""
         resp = await self._client.get(f"/executions/{execution_id}")
@@ -101,6 +138,7 @@ class N8nClient:
             return inner
         return payload
 
+    @_retry_on_network_error
     async def delete_execution(self, execution_id: Union[str, int]) -> Dict[str, Any]:
         """Delete an execution."""
         resp = await self._client.delete(f"/executions/{execution_id}")
@@ -108,6 +146,7 @@ class N8nClient:
         return {"status": "deleted", "id": execution_id}
 
     # Credentials
+    @_retry_on_network_error
     async def list_credentials(self, credential_type: Optional[str] = None) -> List[Dict[str, Any]]:
         """List all credentials, optionally filtered by type."""
         params = {}
@@ -119,6 +158,7 @@ class N8nClient:
         raw = data.get("data", [])
         return [cast(Dict[str, Any], item) for item in raw]
 
+    @_retry_on_network_error
     async def get_credential(self, credential_id: Union[str, int]) -> Dict[str, Any]:
         """Get a specific credential (without sensitive data)."""
         resp = await self._client.get(f"/credentials/{credential_id}")
@@ -129,12 +169,14 @@ class N8nClient:
             return inner
         return payload
 
+    @_retry_on_network_error
     async def create_credential(self, credential_data: Dict[str, Any]) -> Dict[str, Any]:
         """Create a new credential."""
         resp = await self._client.post("/credentials", json=credential_data)
         resp.raise_for_status()
         return cast(Dict[str, Any], resp.json())
 
+    @_retry_on_network_error
     async def update_credential(
         self, credential_id: Union[str, int], credential_data: Dict[str, Any]
     ) -> Dict[str, Any]:
@@ -143,6 +185,7 @@ class N8nClient:
         resp.raise_for_status()
         return cast(Dict[str, Any], resp.json())
 
+    @_retry_on_network_error
     async def delete_credential(self, credential_id: Union[str, int]) -> Dict[str, Any]:
         """Delete a credential."""
         resp = await self._client.delete(f"/credentials/{credential_id}")
@@ -150,6 +193,7 @@ class N8nClient:
         return {"status": "deleted", "id": credential_id}
 
     # Node Types
+    @_retry_on_network_error
     async def list_node_types(self) -> List[Dict[str, Any]]:
         """List all available node types in the n8n instance."""
         resp = await self._client.get("/node-types")
@@ -158,6 +202,7 @@ class N8nClient:
         raw = data.get("data", [])
         return [cast(Dict[str, Any], item) for item in raw]
 
+    @_retry_on_network_error
     async def get_node_type(self, node_type: str) -> Dict[str, Any]:
         """Get detailed information about a specific node type."""
         # URL encode the node type name
@@ -171,6 +216,7 @@ class N8nClient:
         return payload
 
     # Tags
+    @_retry_on_network_error
     async def list_tags(self) -> List[Dict[str, Any]]:
         """List all tags."""
         resp = await self._client.get("/tags")
@@ -179,6 +225,7 @@ class N8nClient:
         raw = data.get("data", [])
         return [cast(Dict[str, Any], item) for item in raw]
 
+    @_retry_on_network_error
     async def create_tag(self, name: str) -> Dict[str, Any]:
         """Create a new tag."""
         resp = await self._client.post("/tags", json={"name": name})
