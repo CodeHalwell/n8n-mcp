@@ -9,6 +9,7 @@ from tenacity import (
     retry_if_exception_type,
 )
 
+from core.circuit_breaker import CircuitBreaker
 from core.config import Settings
 
 
@@ -42,25 +43,79 @@ class N8nClient:
                 keepalive_expiry=300.0,  # Keep connections alive for 5 minutes
             ),
         )
+        # Circuit breaker to prevent cascading failures
+        # Opens after 5 failures, attempts recovery after 60 seconds
+        self._circuit_breaker = CircuitBreaker(
+            service_name="n8n-api",
+            failure_threshold=5,
+            recovery_timeout=60.0,
+            success_threshold=2,
+        )
 
     async def close(self) -> None:
         await self._client.aclose()
 
+    def get_circuit_breaker_stats(self) -> Dict[str, Any]:
+        """Get current circuit breaker statistics."""
+        return self._circuit_breaker.get_stats()
+
+    def reset_circuit_breaker(self) -> None:
+        """Manually reset the circuit breaker to closed state."""
+        self._circuit_breaker.reset()
+
+    def _check_circuit_breaker(self) -> None:
+        """Check circuit breaker state before making a request."""
+        # Import CircuitBreakerOpen at runtime to avoid circular imports
+        from core.circuit_breaker import CircuitBreakerOpen, CircuitState
+
+        # Check if we should attempt reset
+        if self._circuit_breaker._should_attempt_reset():
+            self._circuit_breaker._state = CircuitState.HALF_OPEN
+            self._circuit_breaker._success_count = 0
+
+        # Block requests if circuit is open
+        if self._circuit_breaker.state == CircuitState.OPEN:
+            raise CircuitBreakerOpen(self._circuit_breaker.service_name)
+
+    async def _with_circuit_breaker(self, coro):
+        """Execute an async function with circuit breaker protection.
+
+        This wrapper:
+        1. Checks circuit breaker state before making request
+        2. Executes the request
+        3. Tracks success/failure for circuit breaker state management
+        """
+        self._check_circuit_breaker()
+
+        try:
+            result = await coro
+            self._circuit_breaker._on_success()
+            return result
+        except Exception as e:
+            self._circuit_breaker._on_failure()
+            raise e
+
     # Health & Info
     @_retry_on_network_error
     async def health(self) -> Dict[str, Any]:
-        resp = await self._client.get("/health")
-        resp.raise_for_status()
-        return cast(Dict[str, Any], resp.json())
+        async def _request():
+            resp = await self._client.get("/health")
+            resp.raise_for_status()
+            return cast(Dict[str, Any], resp.json())
+
+        return await self._with_circuit_breaker(_request())
 
     # Workflows
     @_retry_on_network_error
     async def list_workflows(self) -> List[Dict[str, Any]]:
-        resp = await self._client.get("/workflows")
-        resp.raise_for_status()
-        data = cast(Dict[str, Any], resp.json())
-        raw = data.get("data", [])
-        return [cast(Dict[str, Any], item) for item in raw]
+        async def _request():
+            resp = await self._client.get("/workflows")
+            resp.raise_for_status()
+            data = cast(Dict[str, Any], resp.json())
+            raw = data.get("data", [])
+            return [cast(Dict[str, Any], item) for item in raw]
+
+        return await self._with_circuit_breaker(_request())
 
     @_retry_on_network_error
     async def get_workflow(self, workflow_id: Union[str, int]) -> Dict[str, Any]:

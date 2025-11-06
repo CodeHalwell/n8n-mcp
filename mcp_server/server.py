@@ -49,6 +49,21 @@ async def _health_check(settings: Settings) -> Dict[str, Any]:
         return payload
 
 
+async def get_circuit_breaker_stats_action() -> Dict[str, Any]:
+    """Get circuit breaker statistics for monitoring."""
+    async with _client() as client:
+        stats = client.get_circuit_breaker_stats()
+        return stats
+
+
+async def reset_circuit_breaker_action() -> Dict[str, Any]:
+    """Manually reset the circuit breaker to closed state."""
+    async with _client() as client:
+        client.reset_circuit_breaker()
+        audit_log("reset_circuit_breaker", actor="mcp", details={})
+        return {"status": "reset", "message": "Circuit breaker has been reset to CLOSED state"}
+
+
 async def validate_workflow_action(workflow_json: Dict[str, Any]) -> Dict[str, Any]:
     spec = WorkflowSpec(**workflow_json)
     errors = validate_workflow(spec)
@@ -934,6 +949,27 @@ async def get_node_type_tool(arguments: Dict[str, Any]) -> List[TextContent]:
     if not isinstance(node_type, str):
         raise ValueError("node_type must be a string")
     return _text_payload(await get_node_type_action(node_type))
+
+
+# System monitoring tools
+@register_tool(
+    "get_circuit_breaker_stats",
+    "Get circuit breaker statistics for monitoring n8n API health and preventing cascading failures.",
+    {"type": "object", "properties": {}},
+)
+async def get_circuit_breaker_stats_tool(arguments: Dict[str, Any]) -> List[TextContent]:
+    rate_limiter.check("mcp")
+    return _text_payload(await get_circuit_breaker_stats_action())
+
+
+@register_tool(
+    "reset_circuit_breaker",
+    "Manually reset the circuit breaker to closed state. Use when n8n service has recovered.",
+    {"type": "object", "properties": {}},
+)
+async def reset_circuit_breaker_tool(arguments: Dict[str, Any]) -> List[TextContent]:
+    rate_limiter.check("mcp")
+    return _text_payload(await reset_circuit_breaker_action())
 
 
 # mypy struggles with dynamic decorator types exposed by the MCP library.

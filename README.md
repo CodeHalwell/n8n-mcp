@@ -14,8 +14,10 @@ A comprehensive MCP (Model Context Protocol) server for building, managing, and 
 ⚡ **Rate Limiting** - Built-in protection for your n8n instance
 🏎️ **High Performance** - Connection pooling, retry logic, and bulk operations ✨ NEW
 🔗 **Webhook URLs** - Automatically retrieve webhook endpoints ✨ NEW
+🛡️ **Circuit Breaker** - Automatic failure detection and recovery ✨ NEW
+💾 **Node Type Caching** - 1-hour cache for faster node type lookups ✨ NEW
 
-### MCP Tools Available (23 Total)
+### MCP Tools Available (25 Total)
 
 **Workflow Management:**
 - `validate_workflow` - Validate workflow specs offline
@@ -46,6 +48,10 @@ A comprehensive MCP (Model Context Protocol) server for building, managing, and 
 **Node Discovery:**
 - `list_node_types` - Get all available node types in your instance
 - `get_node_type` - Get detailed node documentation and parameters
+
+**System Monitoring:**
+- `get_circuit_breaker_stats` - Monitor API health and circuit breaker state ✨ NEW
+- `reset_circuit_breaker` - Manually reset circuit breaker after n8n recovery ✨ NEW
 
 ### Quickstart
 
