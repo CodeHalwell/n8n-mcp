@@ -151,7 +151,46 @@ Test coverage includes:
 - ✅ **Reliability**: Circuit breaker pattern, rate limiting
 - ✅ **Performance**: Caching with TTL support
 - ✅ **MCP tools**: Tool registration and execution
-- **50+ tests total** with comprehensive edge case coverage
+- **65+ tests total** with comprehensive edge case coverage
+
+### Workflow Builder API
+
+Programmatically build workflows with a fluent, chainable API:
+
+```python
+from core.workflow_helpers import WorkflowBuilder
+
+# Build a workflow fluently
+workflow = (
+    WorkflowBuilder("GitHub Alert System")
+    .add_webhook("Trigger", "/github", "POST")
+    .add_http_request("Fetch Data", "https://api.github.com/repos/={{$json.repo}}")
+    .add_if_condition("Check Stars", "={{$json.stargazers_count}}", "greaterThan", 100)
+    .add_slack("Trending Alert", "#trending", "🔥 Repo is trending!")
+    .add_slack("Normal Log", "#activity", "New activity logged")
+    .connect("Trigger", "Fetch Data")
+    .connect("Fetch Data", "Check Stars")
+    .connect("Check Stars", "Trending Alert", branch=0)  # True
+    .connect("Check Stars", "Normal Log", branch=1)  # False
+    .build()
+)
+```
+
+**Supported Node Types:**
+- `add_webhook()` - Webhook triggers
+- `add_http_request()` - HTTP API calls
+- `add_slack()` - Slack notifications
+- `add_email()` - Email sending
+- `add_if_condition()` - Conditional branching
+- `add_function()` - Custom JavaScript
+- `add_set()` - Data transformation
+- `add_node()` - Any n8n node type
+
+**Helper Functions:**
+- `create_simple_webhook_workflow()` - Quick webhook → action workflows
+- `create_conditional_workflow()` - If/then/else patterns
+
+See `examples/workflow_builder_example.py` for complete examples.
 
 ### Advanced Features
 
