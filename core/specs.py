@@ -22,14 +22,22 @@ class ConnectionSpec(BaseModel):
 
     fromNode: str
     toNode: str
-    output: Literal["main"] = "main"
-    index: int = 0
+    output: str = "main"  # Can be "main", "error", or custom output names
+    index: int = 0  # Output index (for multiple outputs from same node)
+    branch: int = 0  # Branch index (for IF/Switch nodes - which output path)
 
     @field_validator("index")
     @classmethod
     def validate_index(cls, value: int) -> int:
         if value < 0:
             raise ValueError("index must be >= 0")
+        return value
+
+    @field_validator("branch")
+    @classmethod
+    def validate_branch(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("branch must be >= 0")
         return value
 
 

@@ -1,0 +1,280 @@
+{
+	"name": "Advanced Workflow with Branching and Error Handling",
+	"description": "Demonstrates complex branching, error workflows, and multiple node types",
+	"nodes": [
+		{
+			"name": "Webhook Trigger",
+			"type": "n8n-nodes-base.webhook",
+			"typeVersion": 1,
+			"parameters": {
+				"path": "process-order",
+				"httpMethod": "POST",
+				"responseMode": "onReceived"
+			},
+			"position": [100, 300]
+		},
+		{
+			"name": "Validate Order",
+			"type": "n8n-nodes-base.code",
+			"typeVersion": 1,
+			"parameters": {
+				"mode": "runOnceForAllItems",
+				"jsCode": "// Validate order data\nconst order = items[0].json;\n\nif (!order.customer || !order.items) {\n  throw new Error('Invalid order data');\n}\n\nreturn items;"
+			},
+			"position": [300, 300]
+		},
+		{
+			"name": "Check Order Value",
+			"type": "n8n-nodes-base.if",
+			"typeVersion": 1,
+			"parameters": {
+				"conditions": {
+					"number": [
+						{
+							"value1": "={{$json.total}}",
+							"operation": "largerEqual",
+							"value2": 1000
+						}
+					]
+				}
+			},
+			"position": [500, 300]
+		},
+		{
+			"name": "High Value - Send to Manager",
+			"type": "n8n-nodes-base.emailSend",
+			"typeVersion": 2,
+			"parameters": {
+				"toEmail": "manager@company.com",
+				"subject": "High Value Order: {{$json.orderId}}",
+				"text": "Order value: ${{$json.total}}"
+			},
+			"position": [700, 200]
+		},
+		{
+			"name": "Standard Processing",
+			"type": "n8n-nodes-base.set",
+			"typeVersion": 1,
+			"parameters": {
+				"values": {
+					"string": [
+						{
+							"name": "status",
+							"value": "approved"
+						}
+					]
+				}
+			},
+			"position": [700, 400]
+		},
+		{
+			"name": "Check Inventory",
+			"type": "n8n-nodes-base.httpRequest",
+			"typeVersion": 3,
+			"parameters": {
+				"method": "GET",
+				"url": "https://api.inventory.example.com/check",
+				"authentication": "genericCredentialType",
+				"genericAuthType": "httpHeaderAuth"
+			},
+			"position": [900, 300]
+		},
+		{
+			"name": "Stock Status Decision",
+			"type": "n8n-nodes-base.switch",
+			"typeVersion": 1,
+			"parameters": {
+				"dataPropertyName": "={{$json.stockStatus}}",
+				"rules": {
+					"rules": [
+						{
+							"value": "in_stock",
+							"outputKey": "inStock"
+						},
+						{
+							"value": "low_stock",
+							"outputKey": "lowStock"
+						},
+						{
+							"value": "out_of_stock",
+							"outputKey": "outOfStock"
+						}
+					]
+				}
+			},
+			"position": [1100, 300]
+		},
+		{
+			"name": "Process Order - In Stock",
+			"type": "n8n-nodes-base.postgres",
+			"typeVersion": 1,
+			"parameters": {
+				"operation": "insert",
+				"schema": "public",
+				"table": "orders",
+				"columns": "customer_id,order_date,status"
+			},
+			"position": [1300, 150]
+		},
+		{
+			"name": "Alert - Low Stock",
+			"type": "n8n-nodes-base.slack",
+			"typeVersion": 1,
+			"parameters": {
+				"resource": "message",
+				"operation": "post",
+				"channel": "#inventory-alerts",
+				"text": "⚠️ Low stock alert for order {{$json.orderId}}"
+			},
+			"position": [1300, 300]
+		},
+		{
+			"name": "Cancel Order - Out of Stock",
+			"type": "n8n-nodes-base.httpRequest",
+			"typeVersion": 3,
+			"parameters": {
+				"method": "POST",
+				"url": "https://api.orders.example.com/cancel",
+				"sendBody": true,
+				"bodyParameters": {
+					"parameters": [
+						{
+							"name": "orderId",
+							"value": "={{$json.orderId}}"
+						},
+						{
+							"name": "reason",
+							"value": "out_of_stock"
+						}
+					]
+				}
+			},
+			"position": [1300, 450]
+		},
+		{
+			"name": "Error Handler",
+			"type": "n8n-nodes-base.emailSend",
+			"typeVersion": 2,
+			"parameters": {
+				"toEmail": "errors@company.com",
+				"subject": "Order Processing Error",
+				"text": "Error: {{$json.error}}"
+			},
+			"position": [500, 500]
+		},
+		{
+			"name": "Log Error",
+			"type": "n8n-nodes-base.httpRequest",
+			"typeVersion": 3,
+			"parameters": {
+				"method": "POST",
+				"url": "https://api.logging.example.com/errors",
+				"sendBody": true,
+				"bodyParameters": {
+					"parameters": [
+						{
+							"name": "error",
+							"value": "={{$json.error}}"
+						},
+						{
+							"name": "timestamp",
+							"value": "={{$now}}"
+						}
+					]
+				}
+			},
+			"position": [700, 500]
+		}
+	],
+	"connections": [
+		{
+			"fromNode": "Webhook Trigger",
+			"toNode": "Validate Order",
+			"output": "main",
+			"index": 0
+		},
+		{
+			"fromNode": "Validate Order",
+			"toNode": "Check Order Value",
+			"output": "main",
+			"index": 0
+		},
+		{
+			"fromNode": "Check Order Value",
+			"toNode": "High Value - Send to Manager",
+			"output": "main",
+			"branch": 0,
+			"index": 0
+		},
+		{
+			"fromNode": "Check Order Value",
+			"toNode": "Standard Processing",
+			"output": "main",
+			"branch": 1,
+			"index": 0
+		},
+		{
+			"fromNode": "High Value - Send to Manager",
+			"toNode": "Check Inventory",
+			"output": "main",
+			"index": 0
+		},
+		{
+			"fromNode": "Standard Processing",
+			"toNode": "Check Inventory",
+			"output": "main",
+			"index": 0
+		},
+		{
+			"fromNode": "Check Inventory",
+			"toNode": "Stock Status Decision",
+			"output": "main",
+			"index": 0
+		},
+		{
+			"fromNode": "Stock Status Decision",
+			"toNode": "Process Order - In Stock",
+			"output": "main",
+			"branch": 0,
+			"index": 0
+		},
+		{
+			"fromNode": "Stock Status Decision",
+			"toNode": "Alert - Low Stock",
+			"output": "main",
+			"branch": 1,
+			"index": 0
+		},
+		{
+			"fromNode": "Stock Status Decision",
+			"toNode": "Cancel Order - Out of Stock",
+			"output": "main",
+			"branch": 2,
+			"index": 0
+		},
+		{
+			"fromNode": "Validate Order",
+			"toNode": "Error Handler",
+			"output": "error",
+			"index": 0
+		},
+		{
+			"fromNode": "Check Inventory",
+			"toNode": "Error Handler",
+			"output": "error",
+			"index": 0
+		},
+		{
+			"fromNode": "Error Handler",
+			"toNode": "Log Error",
+			"output": "main",
+			"index": 0
+		}
+	],
+	"settings": {
+		"executionOrder": "v1",
+		"saveExecutionProgress": true,
+		"saveManualExecutions": true
+	},
+	"tags": ["example", "advanced", "branching", "error-handling"]
+}
